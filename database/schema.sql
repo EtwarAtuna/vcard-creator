@@ -77,12 +77,25 @@ CREATE TABLE IF NOT EXISTS vcard_tags (
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 );
 
+-- Contact messages table
+CREATE TABLE IF NOT EXISTS contact_messages (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    status ENUM('new', 'read', 'replied') DEFAULT 'new',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 -- Create indexes for better query performance
 CREATE INDEX idx_vcards_user_id ON vcards(user_id);
 CREATE INDEX idx_vcards_full_name ON vcards(full_name);
 CREATE INDEX idx_vcards_email ON vcards(email);
 CREATE INDEX idx_contact_interactions_vcard_id ON contact_interactions(vcard_id);
 CREATE INDEX idx_vcard_tags_tag_id ON vcard_tags(tag_id);
+CREATE INDEX idx_contact_messages_status ON contact_messages(status);
+CREATE INDEX idx_contact_messages_email ON contact_messages(email);
 
 -- Insert some default tags
 INSERT INTO tags (name) VALUES 
