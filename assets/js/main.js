@@ -18,6 +18,7 @@ const previewAddress = document.getElementById('preview-address');
 const previewLinkedin = document.getElementById('preview-linkedin');
 const previewFacebook = document.getElementById('preview-facebook');
 const previewTwitter = document.getElementById('preview-twitter');
+const previewWebsite = document.getElementById('preview-website');
 
 // Handle photo upload
 photoInput.addEventListener('change', (e) => {
@@ -77,6 +78,9 @@ form.addEventListener('input', (e) => {
         case 'twitter':
             updateSocialLink(previewTwitter, target.value);
             break;
+        case 'website':
+            updateSocialLink(previewWebsite, target.value);
+            break;
         case 'backgroundColor':
             vcardPreview.style.backgroundColor = target.value;
             break;
@@ -105,6 +109,7 @@ form.addEventListener('submit', async (e) => {
         linkedin: formData.get('linkedin'),
         facebook: formData.get('facebook'),
         twitter: formData.get('twitter'),
+        website: formData.get('website'),
         backgroundColor: formData.get('backgroundColor'),
         photo: await getPhotoDataUrl()
     };
@@ -161,6 +166,7 @@ TITLE:${title}
 EMAIL:${email}
 TEL:${phone}
 ADR:;;${address};;;;
+URL:${document.querySelector('input[name="website"]').value}
 END:VCARD`;
 }
 
