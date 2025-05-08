@@ -47,31 +47,21 @@ tabButtons.forEach(button => {
     });
 });
 
-// Firebase Configuration (Replace with your Firebase config)
-const firebaseConfig = {
-    apiKey: "your-api-key",
-    authDomain: "your-auth-domain",
-    projectId: "your-project-id",
-    storageBucket: "your-storage-bucket",
-    messagingSenderId: "your-messaging-sender-id",
-    appId: "your-app-id"
-};
+// Firebase instances are imported from config.js
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const storage = firebase.storage();
 
 // Handle photo upload
-photoInput.addEventListener('change', (e) => {
+photoInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const photoUrl = e.target.result;
-            updatePhotoPreviews(photoUrl);
-        };
-        reader.readAsDataURL(file);
+        try {
+            const result = await storage.uploadFile(file, 'profiles');
+            updatePhotoPreviews(result.url);
+            showToast('Photo uploaded successfully!');
+        } catch (error) {
+            console.error('Error uploading photo:', error);
+            showToast('Error uploading photo. Please try again.', 'error');
+        }
     }
 });
 
@@ -157,21 +147,18 @@ form.addEventListener('submit', async (e) => {
             createdAt: new Date().toISOString()
         };
 
-        // Upload photo if exists
-        const photoFile = photoInput.files[0];
-        if (photoFile) {
-            const photoRef = storage.ref(`photos/${Date.now()}_${photoFile.name}`);
-            await photoRef.put(photoFile);
-            vCardData.photoUrl = await photoRef.getDownloadURL();
+        // Add photo URL if exists
+        if (previewPhoto.src && !previewPhoto.classList.contains('hidden')) {
+            vCardData.photoUrl = previewPhoto.src;
         }
 
-        // Save to Firebase
+        // Save to local storage
         const docRef = await db.collection('vcards').add(vCardData);
         
         // Generate shareable link
         const shareableLink = `${window.location.origin}/view.html?id=${docRef.id}`;
         
-        // Show success message
+        // Show success message with shareable link
         showToast('vCard created successfully!', shareableLink);
         
         // Reset form
@@ -209,18 +196,25 @@ brochureImageInput.addEventListener('change', () => {
 uploadImagesButton.addEventListener('click', async () => {
     const files = brochureImageInput.files;
     if (files.length === 0) {
-        showToast('Please select images to upload.', null, 'error');
+        showToast('Please select images to upload.', 'error');
         return;
     }
 
     try {
-        const uploadedUrls = await uploadBrochureImages(files);
-        await saveBrochureImages(uploadedUrls);
+        const uploadPromises = Array.from(files).map(file => storage.uploadFile(file, 'brochure'));
+
+        const results = await Promise.all(uploadPromises);
+        const urls = results.map(result => result.url);
+
+        await saveBrochureImages(urls);
         showToast('Images uploaded successfully!');
         refreshImageGrid();
+
+        // Clear the file input
+        brochureImageInput.value = '';
     } catch (error) {
         console.error('Upload error:', error);
-        showToast('Error uploading images. Please try again.', null, 'error');
+        showToast('Error uploading images. Please try again.', 'error');
     }
 });
 
@@ -266,49 +260,117 @@ async function syncData() {
 function previewBrochureImages(files) {
     imagePreviewGrid.innerHTML = '';
     Array.from(files).forEach(file => {
+        const div = document.createElement('div');
+        div.className = 'relative aspect-w-4 aspect-h-3 animate-pulse bg-gray-200 rounded-lg';
+        imagePreviewGrid.appendChild(div);
+
         const reader = new FileReader();
         reader.onload = (e) => {
-            const div = document.createElement('div');
-            div.className = 'relative aspect-w-4 aspect-h-3';
+            div.classList.remove('animate-pulse', 'bg-gray-200');
             div.innerHTML = `
                 <img src="${e.target.result}" alt="Preview" class="object-cover rounded-lg">
                 <div class="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-10 transition-opacity"></div>
             `;
-            imagePreviewGrid.appendChild(div);
         };
         reader.readAsDataURL(file);
     });
 }
 
-async function uploadBrochureImages(files) {
-    const uploadPromises = Array.from(files).map(async file => {
-        const ref = storage.ref(`brochure/${Date.now()}_${file.name}`);
-        await ref.put(file);
-        return ref.getDownloadURL();
-    });
-    return Promise.all(uploadPromises);
-}
-
 async function saveBrochureImages(urls) {
-    const brochureData = {
-        images: urls,
-        updatedAt: new Date().toISOString()
-    };
-    await db.collection('brochure').doc('images').set(brochureData);
+    try {
+        const doc = await db.collection('brochure').doc('images').get();
+        const existingUrls = doc.exists ? doc.data().images || [] : [];
+        
+        await db.collection('brochure').doc('images').set({
+            images: [...existingUrls, ...urls],
+            updatedAt: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error saving brochure images:', error);
+        throw error;
+    }
 }
 
 async function saveCompanyDescription(description) {
-    await db.collection('brochure').doc('description').set({
-        content: description,
-        updatedAt: new Date().toISOString()
-    });
+    try {
+        await db.collection('brochure').doc('description').set({
+            content: description,
+            updatedAt: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error saving company description:', error);
+        throw error;
+    }
+}
+
+async function refreshContactsTable() {
+    if (!contactsTableBody) return;
+
+    try {
+        const contacts = await db.collection('vcards').get();
+        const filteredContacts = contacts.docs.filter(doc => {
+            const data = doc.data();
+            const searchTerm = (contactSearch?.value || '').toLowerCase();
+            const filterValue = contactFilter?.value || 'all';
+            
+            // Search term filtering
+            const matchesSearch = !searchTerm || 
+                data.fullName?.toLowerCase().includes(searchTerm) ||
+                data.email?.toLowerCase().includes(searchTerm) ||
+                data.company?.toLowerCase().includes(searchTerm);
+            
+            // Status filtering
+            const matchesFilter = filterValue === 'all' || 
+                (filterValue === 'active' && data.active) ||
+                (filterValue === 'inactive' && !data.active);
+            
+            return matchesSearch && matchesFilter;
+        });
+
+        const rows = filteredContacts.map(doc => {
+            const data = doc.data();
+            return `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            ${data.photoUrl ? 
+                                `<img src="${data.photoUrl}" alt="" class="h-10 w-10 rounded-full mr-3">` :
+                                `<div class="h-10 w-10 rounded-full bg-gray-200 mr-3 flex items-center justify-center">
+                                    <i class="fas fa-user text-gray-400"></i>
+                                </div>`
+                            }
+                            <div>
+                                <div class="text-sm font-medium text-gray-900">${data.fullName}</div>
+                                <div class="text-sm text-gray-500">${data.company || ''}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-900">${data.email || ''}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-900">${data.phone || ''}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${new Date(data.createdAt).toLocaleDateString()}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <a href="/view.html?id=${doc.id}" target="_blank" class="text-indigo-600 hover:text-indigo-900">
+                            View
+                        </a>
+                    </td>
+                </tr>
+            `;
+        });
+
+        contactsTableBody.innerHTML = rows.join('');
+    } catch (error) {
+        console.error('Error refreshing contacts table:', error);
+        showToast('Error loading contacts', 'error');
+    }
 }
 
 function filterContacts() {
-    const searchTerm = contactSearch.value.toLowerCase();
-    const filterValue = contactFilter.value;
-    
-    // Implement contact filtering logic
     refreshContactsTable();
 }
 
@@ -394,27 +456,102 @@ function showToast(message, link = null, type = 'success') {
 }
 
 // Initialize
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        // Load company description
-        const descDoc = await db.collection('brochure').doc('description').get();
-        if (descDoc.exists) {
-            companyDescription.value = descDoc.data().content;
-        }
+document.addEventListener('DOMContentLoaded', () => {
+    // Set initial active tab
+    document.querySelector('.tab-btn[data-tab="vcard"]').click();
 
-        // Load brochure images
-        const imagesDoc = await db.collection('brochure').doc('images').get();
-        if (imagesDoc.exists) {
-            refreshImageGrid(imagesDoc.data().images);
-        }
+    // Load saved data
+    (async () => {
+        try {
+            // Load company description
+            const descDoc = await db.collection('brochure').doc('description').get();
+            if (descDoc.exists && companyDescription) {
+                companyDescription.value = descDoc.data().content;
+            }
 
-        // Load contacts
-        refreshContactsTable();
-    } catch (error) {
-        console.error('Initialization error:', error);
-        showToast('Error loading data. Please refresh the page.', null, 'error');
-    }
+            // Load brochure images
+            const imagesDoc = await db.collection('brochure').doc('images').get();
+            if (imagesDoc.exists && imagePreviewGrid) {
+                const images = imagesDoc.data().images || [];
+                images.forEach(url => {
+                    const div = document.createElement('div');
+                    div.className = 'relative aspect-w-4 aspect-h-3 group';
+                    div.innerHTML = `
+                        <img src="${url}" alt="Brochure image" class="object-cover rounded-lg">
+                        <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity">
+                            <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="deleteBrochureImage('${url}')" 
+                                        class="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    imagePreviewGrid.appendChild(div);
+                });
+            }
+
+            // Initialize contact table if it exists
+            if (contactsTableBody) {
+                const contacts = await db.collection('vcards').get();
+                const rows = contacts.docs.map(doc => {
+                    const data = doc.data();
+                    return `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">${data.fullName}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${data.email}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${data.phone}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${new Date(data.createdAt).toLocaleDateString()}</td>
+                        </tr>
+                    `;
+                });
+                contactsTableBody.innerHTML = rows.join('');
+            }
+        } catch (error) {
+            console.error('Initialization error:', error);
+            showToast('Error loading data. Please refresh the page.', 'error');
+        }
+    })();
 });
+
+// Delete brochure image
+async function deleteBrochureImage(urlToDelete) {
+    try {
+        const doc = await db.collection('brochure').doc('images').get();
+        if (doc.exists) {
+            const images = doc.data().images.filter(url => url !== urlToDelete);
+            await db.collection('brochure').doc('images').set({
+                images,
+                updatedAt: new Date().toISOString()
+            });
+            showToast('Image deleted successfully!');
+            
+            // Refresh the image grid
+            if (imagePreviewGrid) {
+                imagePreviewGrid.innerHTML = '';
+                images.forEach(url => {
+                    const div = document.createElement('div');
+                    div.className = 'relative aspect-w-4 aspect-h-3 group';
+                    div.innerHTML = `
+                        <img src="${url}" alt="Brochure image" class="object-cover rounded-lg">
+                        <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity">
+                            <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="deleteBrochureImage('${url}')" 
+                                        class="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    imagePreviewGrid.appendChild(div);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error deleting image:', error);
+        showToast('Error deleting image', 'error');
+    }
+}
 
 // Copy to clipboard helper
 function copyToClipboard(text) {
