@@ -202,3 +202,41 @@ def log_interaction(vcard_id, interaction_type, ip_address=None, user_agent=None
     VALUES (%s, %s, %s, %s)
     """
     return execute_query(query, (vcard_id, interaction_type, ip_address, user_agent))
+
+# Contact Message Operations
+def save_contact_message(message_data):
+    """Save a new contact form message"""
+    query = """
+    INSERT INTO contact_messages (full_name, email, message)
+    VALUES (%(full_name)s, %(email)s, %(message)s)
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(query, message_data)
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            cursor.close()
+
+def get_contact_messages(status=None):
+    """Get contact messages with optional status filter"""
+    query = "SELECT * FROM contact_messages"
+    params = None
+    
+    if status:
+        query += " WHERE status = %s"
+        params = (status,)
+    
+    query += " ORDER BY created_at DESC"
+    return execute_query(query, params, fetchall=True)
+
+def update_message_status(message_id, status):
+    """Update the status of a contact message"""
+    query = "UPDATE contact_messages SET status = %s WHERE id = %s"
+    return execute_query(query, (status, message_id))
+
+def delete_contact_message(message_id):
+    """Delete a contact message"""
+    query = "DELETE FROM contact_messages WHERE id = %s"
+    return execute_query(query, (message_id,))
