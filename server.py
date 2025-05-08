@@ -9,7 +9,10 @@ from database.db import (
     add_vcard,
     update_vcard,
     delete_vcard,
-    execute_query
+    execute_query,
+    save_contact_message,
+    get_contact_messages,
+    update_message_status
 )
 
 # Ensure upload directories exist
@@ -78,6 +81,11 @@ class RequestHandler(SimpleHTTPRequestHandler):
                 """, fetchone=True)
                 self.send_json_response(brochure)
             
+            elif path == '/api/contact':
+                # Get contact messages (admin only)
+                messages = get_contact_messages()
+                self.send_json_response(messages)
+            
             else:
                 self.send_error(404, "API endpoint not found")
                 
@@ -108,6 +116,24 @@ class RequestHandler(SimpleHTTPRequestHandler):
                     (data.get('description'),)
                 )
                 self.send_json_response({"message": "Brochure updated successfully"})
+            
+            elif self.path == '/api/contact':
+                # Save contact form message
+                message_id = save_contact_message(data)
+                self.send_json_response({
+                    "message": "Message sent successfully",
+                    "id": message_id
+                })
+            
+            elif self.path.startswith('/api/contact/'):
+                # Update message status (admin only)
+                message_id = int(self.path.split('/')[-1])
+                status = data.get('status')
+                if status in ['new', 'read', 'replied']:
+                    update_message_status(message_id, status)
+                    self.send_json_response({"message": "Status updated successfully"})
+                else:
+                    self.send_error(400, "Invalid status")
             
             else:
                 self.send_error(404, "API endpoint not found")
