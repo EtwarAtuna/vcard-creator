@@ -119,8 +119,11 @@ form.addEventListener('submit', async (e) => {
     });
     localStorage.setItem('vcards', JSON.stringify(savedCards));
     
-    // Show success message
-    showToast('vCard created successfully!');
+    // Generate shareable link
+    const shareableLink = `${window.location.origin}/view.html?id=${savedCards[savedCards.length - 1].id}`;
+    
+    // Show success message with link
+    showToast('vCard created successfully!', shareableLink);
 });
 
 // Handle "Save to Contacts" button
@@ -175,11 +178,53 @@ function downloadVCard(vcard) {
     window.URL.revokeObjectURL(url);
 }
 
+// Copy text to clipboard
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        const copyBtn = document.querySelector('.fa-copy').parentElement;
+        copyBtn.innerHTML = '<i class="fas fa-check text-green-500"></i>';
+        setTimeout(() => {
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy text: ', err);
+    });
+}
+
 // Show toast notification
-function showToast(message) {
+function showToast(message, link = null) {
     const toast = document.createElement('div');
-    toast.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-full opacity-0 transition-all duration-300';
-    toast.textContent = message;
+    toast.className = 'fixed bottom-4 right-4 bg-white text-gray-900 px-6 py-4 rounded-lg shadow-lg transform translate-y-full opacity-0 transition-all duration-300';
+    
+    let content = `
+        <div class="flex items-start">
+            <div class="flex-shrink-0">
+                <i class="fas fa-check-circle text-green-500 text-xl"></i>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm font-medium text-gray-900">${message}</p>
+    `;
+    
+    if (link) {
+        content += `
+                <div class="mt-2">
+                    <p class="text-sm text-gray-600">Shareable Link:</p>
+                    <div class="mt-1 flex items-center space-x-2">
+                        <input type="text" value="${link}" readonly class="text-sm bg-gray-50 px-2 py-1 rounded border flex-grow">
+                        <button onclick="copyToClipboard('${link}')" class="text-indigo-600 hover:text-indigo-500">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+        `;
+    }
+    
+    content += `
+            </div>
+        </div>
+    `;
+    
+    toast.innerHTML = content;
     
     document.body.appendChild(toast);
     
