@@ -80,12 +80,14 @@ CREATE TABLE IF NOT EXISTS vcard_tags (
 -- Contact messages table
 CREATE TABLE IF NOT EXISTS contact_messages (
     id INT PRIMARY KEY AUTO_INCREMENT,
+    vcard_id INT,
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     status ENUM('new', 'read', 'replied') DEFAULT 'new',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (vcard_id) REFERENCES vcards(id) ON DELETE SET NULL
 );
 
 -- Create indexes for better query performance
