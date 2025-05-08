@@ -6,8 +6,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Get form data
         const formData = {
+            vcard_id: window.vcardId || null,
             full_name: contactForm.querySelector('[name="name"]').value,
             email: contactForm.querySelector('[name="email"]').value,
+            website: contactForm.querySelector('[name="website"]').value,
             message: contactForm.querySelector('[name="message"]').value,
             created_at: new Date().toISOString()
         };
