@@ -207,8 +207,8 @@ def log_interaction(vcard_id, interaction_type, ip_address=None, user_agent=None
 def save_contact_message(message_data):
     """Save a new contact form message"""
     query = """
-    INSERT INTO contact_messages (full_name, email, message)
-    VALUES (%(full_name)s, %(email)s, %(message)s)
+    INSERT INTO contact_messages (vcard_id, full_name, email, message)
+    VALUES (%(vcard_id)s, %(full_name)s, %(email)s, %(message)s)
     """
     with get_connection() as conn:
         cursor = conn.cursor()
