@@ -1,0 +1,171 @@
+/* Custom styles for vCard Creator */
+
+/* Form input base styles */
+.form-input {
+    @apply mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm;
+    @apply focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
+}
+
+/* Form group spacing */
+.form-group {
+    @apply mb-4;
+}
+
+/* Form label styling */
+.form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+/* Textarea specific styles */
+textarea.form-input {
+    @apply resize-none;
+}
+
+/* Smooth transitions */
+.transition-all {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/* Custom color input styling */
+input[type="color"] {
+    -webkit-appearance: none;
+    width: 60px;
+    height: 30px;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+    padding: 0;
+    cursor: pointer;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+input[type="color"]::-webkit-color-swatch {
+    border: none;
+    border-radius: 3px;
+}
+
+/* File input custom styling */
+input[type="file"] {
+    width: 0.1px;
+    height: 0.1px;
+    opacity: 0;
+    overflow: hidden;
+    position: absolute;
+    z-index: -1;
+}
+
+/* vCard preview animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.preview-animate {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Social media icon hover effects */
+.social-icon {
+    transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+.social-icon:hover {
+    transform: scale(1.1);
+}
+
+/* Custom focus styles */
+.custom-focus:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-spinner {
+    animation: spin 1s linear infinite;
+}
+
+/* Toast notification styles */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background-color: white;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    z-index: 50;
+    opacity: 0;
+    transform: translateY(1rem);
+    transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Print styles for vCard */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    
+    #vcard-preview, #vcard-preview * {
+        visibility: visible;
+    }
+    
+    #vcard-preview {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .responsive-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .responsive-padding {
+        padding: 1rem;
+    }
+}
