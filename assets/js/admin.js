@@ -128,10 +128,18 @@ function updateSocialLink(element, value) {
 // Handle form submission
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     try {
         // Collect form data
         const formData = new FormData(form);
+        const website = formData.get('website')?.trim();
+
+        // Validate website URL
+        if (!website) {
+            alert('Please fill in the website URL.');
+            return;
+        }
+
         const vCardData = {
             fullName: formData.get('fullName'),
             jobTitle: formData.get('jobTitle'),
@@ -142,7 +150,7 @@ form.addEventListener('submit', async (e) => {
             linkedin: formData.get('linkedin'),
             facebook: formData.get('facebook'),
             twitter: formData.get('twitter'),
-            website: formData.get('website'),
+            website: website,
             backgroundColor: formData.get('backgroundColor'),
             createdAt: new Date().toISOString()
         };
