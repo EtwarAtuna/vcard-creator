@@ -71,7 +71,7 @@ photoInput.addEventListener('change', async (e) => {
             const formData = new FormData();
             formData.append('photo', file);
 
-const response = await fetch('/upload?type=profiles', {
+const response = await fetch('http://localhost:8000/upload?type=profiles', {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -210,7 +210,7 @@ form.addEventListener('submit', async (e) => {
         }
 
         // Save to MySQL database
-        const response = await fetch('/api/vcards', {
+const response = await fetch('http://localhost:8000/api/vcards', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -357,7 +357,7 @@ function previewBrochureImages(files) {
 
 async function saveBrochureImages(urls) {
     try {
-        const response = await fetch('/api/brochure/images', {
+        const response = await fetch('http://localhost:8000/api/brochure/images', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -370,7 +370,7 @@ async function saveBrochureImages(urls) {
         }
 
         // Refresh the image grid after saving
-        const imagesResponse = await fetch('/api/brochure/images');
+        const imagesResponse = await fetch('http://localhost:8000/api/brochure/images');
         if (imagesResponse.ok && imagePreviewGrid) {
             const imagesData = await imagesResponse.json();
             refreshImageGrid(imagesData.images || []);
@@ -383,7 +383,7 @@ async function saveBrochureImages(urls) {
 
 async function saveCompanyDescription(description) {
     try {
-const response = await fetch('/api/brochure/description', {
+const response = await fetch('http://localhost:8000/api/brochure/description', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -473,7 +473,7 @@ function filterContacts() {
 async function exportContacts() {
     try {
         // Fetch contacts from MySQL API
-const response = await fetch('/api/vcards/export');
+const response = await fetch('http://localhost:8000/api/vcards/export');
         if (!response.ok) {
             throw new Error('Failed to export contacts');
         }
@@ -571,14 +571,14 @@ document.addEventListener('DOMContentLoaded', () => {
     (async () => {
         try {
             // Load company description
-const descResponse = await fetch('/api/brochure/description');
+const descResponse = await fetch('http://localhost:8000/api/brochure/description');
             if (descResponse.ok && companyDescription) {
                 const descData = await descResponse.json();
                 companyDescription.value = descData.content || '';
             }
 
             // Load brochure images
-            const imagesResponse = await fetch('/api/brochure/images');
+            const imagesResponse = await fetch('http://localhost:8000/api/brochure/images');
             if (imagesResponse.ok && imagePreviewGrid) {
                 const imagesData = await imagesResponse.json();
                 const images = imagesData.images || [];
@@ -599,7 +599,7 @@ const descResponse = await fetch('/api/brochure/description');
 
             // Initialize contact table if it exists
             if (contactsTableBody) {
-const contactsResponse = await fetch('/api/vcards');
+const contactsResponse = await fetch('http://localhost:8000/api/vcards');
                 if (contactsResponse.ok) {
                     const contacts = await contactsResponse.json();
                     const rows = contacts.map(data => `
@@ -623,7 +623,7 @@ const contactsResponse = await fetch('/api/vcards');
 // Delete brochure image
 async function deleteBrochureImage(urlToDelete) {
     try {
-        const response = await fetch('/api/brochure/images', {
+        const response = await fetch('http://localhost:8000/api/brochure/images', {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json'
@@ -639,7 +639,7 @@ async function deleteBrochureImage(urlToDelete) {
         showToast('Image deleted successfully!');
         
         // Refresh the image grid
-        const imagesResponse = await fetch('/api/brochure/images');
+        const imagesResponse = await fetch('http://localhost:8000/api/brochure/images');
         if (imagesResponse.ok && imagePreviewGrid) {
             const imagesData = await imagesResponse.json();
             const images = imagesData.images || [];
