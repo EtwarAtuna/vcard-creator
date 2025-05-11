@@ -1,9 +1,9 @@
 # Database Configuration
 DB_CONFIG = {
     'host': 'localhost',
-    'user': 'root',           # Update with your MySQL username
-    'password': '',           # Update with your MySQL password
-    'database': 'vcard_creator',
+    'user': 'glori79e_vcard',
+    'password': 'Vf5ddzDYeN2vHhGx2VUC',
+    'database': 'glori79e_vcard',
     'raise_on_warnings': True,
     'autocommit': True,
     'pool_name': 'vcard_pool',
@@ -46,3 +46,4 @@ SUCCESS_MESSAGES = {
     'file_uploaded': 'File uploaded successfully',
     'login_success': 'Login successful'
 }
+</create_file>
