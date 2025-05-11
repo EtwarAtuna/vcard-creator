@@ -149,9 +149,27 @@ class RequestHandler(SimpleHTTPRequestHandler):
                 self.send_error(400, "Expected multipart/form-data")
                 return
 
-            # Read and parse the multipart form data
+            # Get the boundary
+            boundary = content_type.split('=')[1].encode()
+            
+            # Read the entire request body
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
+            
+            # Split the body into parts using the boundary
+            parts = post_data.split(boundary)
+            
+            # Find the file data part (usually the second part)
+            file_data = None
+            for part in parts:
+                if b'Content-Type: image/' in part:
+                    # Extract the actual file data (skip headers)
+                    file_data = part.split(b'\r\n\r\n')[1].rstrip(b'\r\n--')
+                    break
+            
+            if not file_data:
+                self.send_error(400, "No file found in upload")
+                return
             
             # Extract file type (profiles or brochure)
             upload_type = parse_qs(urlparse(self.path).query).get('type', [''])[0]
@@ -162,7 +180,8 @@ class RequestHandler(SimpleHTTPRequestHandler):
             file_path = os.path.join(upload_dir, filename)
             
             with open(file_path, 'wb') as f:
-                f.write(post_data)
+                f.write(file_data)
+            print(f"Saved uploaded file to {file_path} ({len(file_data)} bytes)")
             
             # If it's a brochure image, save to database
             if upload_type == 'brochure':
@@ -178,6 +197,9 @@ class RequestHandler(SimpleHTTPRequestHandler):
             })
             
         except Exception as e:
+            import traceback
+            error_message = f"Upload error: {str(e)}\n{traceback.format_exc()}"
+            print(error_message)
             self.send_error(500, str(e))
 
     def send_json_response(self, data):
