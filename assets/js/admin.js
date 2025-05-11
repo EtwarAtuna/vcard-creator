@@ -34,16 +34,29 @@ const tabContents = document.querySelectorAll('.tab-content');
 
 tabButtons.forEach(button => {
     button.addEventListener('click', () => {
-        // Remove active class from all buttons and contents
-        tabButtons.forEach(btn => btn.classList.remove('active', 'border-indigo-500', 'text-indigo-600'));
-        tabContents.forEach(content => content.classList.add('hidden'));
-        
-        // Add active class to clicked button
-        button.classList.add('active', 'border-indigo-500', 'text-indigo-600');
-        
-        // Show corresponding content
-        const tabId = button.dataset.tab;
-        document.getElementById(`${tabId}-tab`).classList.remove('hidden');
+        try {
+            // Remove active class from all buttons and contents
+            tabButtons.forEach(btn => btn.classList.remove('active', 'border-indigo-500', 'text-indigo-600'));
+            tabContents.forEach(content => content.classList.add('hidden'));
+            
+            // Add active class to clicked button
+            button.classList.add('active', 'border-indigo-500', 'text-indigo-600');
+            
+            // Show corresponding content
+            const tabId = button.dataset.tab;
+            const tabContent = document.getElementById(`${tabId}-tab`);
+            if (tabContent) {
+                tabContent.classList.remove('hidden');
+                // If contacts tab activated, refresh contacts table
+                if (tabId === 'contacts') {
+                    refreshContactsTable();
+                }
+            } else {
+                console.warn(`Tab content for ${tabId} not found.`);
+            }
+        } catch (error) {
+            console.error('Error switching tabs:', error);
+        }
     });
 });
 
@@ -55,7 +68,22 @@ photoInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
         try {
-            const result = await storage.uploadFile(file, 'profiles');
+            const formData = new FormData();
+            formData.append('photo', file);
+
+const response = await fetch('/upload?type=profiles', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    // Don't set Content-Type header, let the browser set it with the boundary
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to upload photo');
+            }
+
+            const result = await response.json();
             updatePhotoPreviews(result.url);
             showToast('Photo uploaded successfully!');
         } catch (error) {
@@ -125,6 +153,27 @@ function updateSocialLink(element, value) {
     element.style.opacity = value ? '1' : '0.5';
 }
 
+// Reset preview fields and photo placeholders
+function resetPreviews() {
+    previewName.textContent = 'Your Name';
+    previewJob.textContent = 'Job Title';
+    previewCompany.textContent = 'Company';
+    previewEmail.textContent = 'email@example.com';
+    previewPhone.textContent = 'Phone number';
+    previewAddress.textContent = 'Address';
+    updateSocialLink(previewLinkedin, '');
+    updateSocialLink(previewFacebook, '');
+    updateSocialLink(previewTwitter, '');
+    updateSocialLink(previewWebsite, '');
+    vcardPreview.style.backgroundColor = '';
+    previewPhoto.src = '';
+    previewPhoto.classList.add('hidden');
+    photoPlaceholder.classList.remove('hidden');
+    previewPhotoDisplay.src = '';
+    previewPhotoDisplay.classList.add('hidden');
+    photoPlaceholderPreview.classList.remove('hidden');
+}
+
 // Handle form submission
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -134,11 +183,11 @@ form.addEventListener('submit', async (e) => {
         const formData = new FormData(form);
         const website = formData.get('website')?.trim();
 
-        // Validate website URL
-        if (!website) {
-            alert('Please fill in the website URL.');
-            return;
-        }
+        // Bypass website URL validation to allow empty website
+        // if (website === null || website.trim() === '') {
+        //     alert('Please fill in the website URL.');
+        //     return;
+        // }
 
         const vCardData = {
             fullName: formData.get('fullName'),
@@ -160,11 +209,23 @@ form.addEventListener('submit', async (e) => {
             vCardData.photoUrl = previewPhoto.src;
         }
 
-        // Save to local storage
-        const docRef = await db.collection('vcards').add(vCardData);
+        // Save to MySQL database
+        const response = await fetch('/api/vcards', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(vCardData)
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to save vCard');
+        }
+
+        const result = await response.json();
         
         // Generate shareable link
-        const shareableLink = `${window.location.origin}/view.html?id=${docRef.id}`;
+        const shareableLink = `${window.location.origin}/view.html?id=${result.id}`;
         
         // Show success message with shareable link
         showToast('vCard created successfully!', shareableLink);
@@ -209,12 +270,22 @@ uploadImagesButton.addEventListener('click', async () => {
     }
 
     try {
-        const uploadPromises = Array.from(files).map(file => storage.uploadFile(file, 'brochure'));
+        const formData = new FormData();
+        Array.from(files).forEach(file => {
+            formData.append('photos[]', file);
+        });
 
-        const results = await Promise.all(uploadPromises);
-        const urls = results.map(result => result.url);
+        const response = await fetch('/vcard/upload?type=brochure', {
+            method: 'POST',
+            body: formData
+        });
 
-        await saveBrochureImages(urls);
+        if (!response.ok) {
+            throw new Error('Failed to upload brochure images');
+        }
+
+        const result = await response.json();
+        await saveBrochureImages(result.urls);
         showToast('Images uploaded successfully!');
         refreshImageGrid();
 
@@ -286,13 +357,24 @@ function previewBrochureImages(files) {
 
 async function saveBrochureImages(urls) {
     try {
-        const doc = await db.collection('brochure').doc('images').get();
-        const existingUrls = doc.exists ? doc.data().images || [] : [];
-        
-        await db.collection('brochure').doc('images').set({
-            images: [...existingUrls, ...urls],
-            updatedAt: new Date().toISOString()
+        const response = await fetch('/api/brochure/images', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ images: urls })
         });
+
+        if (!response.ok) {
+            throw new Error('Failed to save brochure images');
+        }
+
+        // Refresh the image grid after saving
+        const imagesResponse = await fetch('/api/brochure/images');
+        if (imagesResponse.ok && imagePreviewGrid) {
+            const imagesData = await imagesResponse.json();
+            refreshImageGrid(imagesData.images || []);
+        }
     } catch (error) {
         console.error('Error saving brochure images:', error);
         throw error;
@@ -301,10 +383,17 @@ async function saveBrochureImages(urls) {
 
 async function saveCompanyDescription(description) {
     try {
-        await db.collection('brochure').doc('description').set({
-            content: description,
-            updatedAt: new Date().toISOString()
+const response = await fetch('/api/brochure/description', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ content: description })
         });
+
+        if (!response.ok) {
+            throw new Error('Failed to save company description');
+        }
     } catch (error) {
         console.error('Error saving company description:', error);
         throw error;
@@ -315,12 +404,14 @@ async function refreshContactsTable() {
     if (!contactsTableBody) return;
 
     try {
-        const contacts = await db.collection('vcards').get();
-        const filteredContacts = contacts.docs.filter(doc => {
-            const data = doc.data();
-            const searchTerm = (contactSearch?.value || '').toLowerCase();
-            const filterValue = contactFilter?.value || 'all';
-            
+const response = await fetch('/api/vcards');
+        if (!response.ok) throw new Error('Failed to fetch contacts');
+        const contacts = await response.json();
+
+        const searchTerm = (contactSearch?.value || '').toLowerCase();
+        const filterValue = contactFilter?.value || 'all';
+
+        const filteredContacts = contacts.filter(data => {
             // Search term filtering
             const matchesSearch = !searchTerm || 
                 data.fullName?.toLowerCase().includes(searchTerm) ||
@@ -335,41 +426,38 @@ async function refreshContactsTable() {
             return matchesSearch && matchesFilter;
         });
 
-        const rows = filteredContacts.map(doc => {
-            const data = doc.data();
-            return `
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex items-center">
-                            ${data.photoUrl ? 
-                                `<img src="${data.photoUrl}" alt="" class="h-10 w-10 rounded-full mr-3">` :
-                                `<div class="h-10 w-10 rounded-full bg-gray-200 mr-3 flex items-center justify-center">
-                                    <i class="fas fa-user text-gray-400"></i>
-                                </div>`
-                            }
-                            <div>
-                                <div class="text-sm font-medium text-gray-900">${data.fullName}</div>
-                                <div class="text-sm text-gray-500">${data.company || ''}</div>
-                            </div>
+        const rows = filteredContacts.map(data => `
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                        ${data.photoUrl ? 
+                            `<img src="${data.photoUrl}" alt="" class="h-10 w-10 rounded-full mr-3">` :
+                            `<div class="h-10 w-10 rounded-full bg-gray-200 mr-3 flex items-center justify-center">
+                                <i class="fas fa-user text-gray-400"></i>
+                            </div>`
+                        }
+                        <div>
+                            <div class="text-sm font-medium text-gray-900">${data.fullName}</div>
+                            <div class="text-sm text-gray-500">${data.company || ''}</div>
                         </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm text-gray-900">${data.email || ''}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm text-gray-900">${data.phone || ''}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        ${new Date(data.createdAt).toLocaleDateString()}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <a href="/view.html?id=${doc.id}" target="_blank" class="text-indigo-600 hover:text-indigo-900">
-                            View
-                        </a>
-                    </td>
-                </tr>
-            `;
-        });
+                    </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm text-gray-900">${data.email || ''}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm text-gray-900">${data.phone || ''}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${new Date(data.createdAt).toLocaleDateString()}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <a href="/view.html?id=${data.id}" target="_blank" class="text-indigo-600 hover:text-indigo-900">
+                        View
+                    </a>
+                </td>
+            </tr>
+        `);
 
         contactsTableBody.innerHTML = rows.join('');
     } catch (error) {
@@ -383,21 +471,32 @@ function filterContacts() {
 }
 
 async function exportContacts() {
-    // Implement contact export logic
-    const contacts = await db.collection('vcards').get();
-    const data = contacts.docs.map(doc => doc.data());
-    
-    // Create CSV
-    const csv = convertToCSV(data);
-    
-    // Download file
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `contacts_${new Date().toISOString()}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    try {
+        // Fetch contacts from MySQL API
+const response = await fetch('/api/vcards/export');
+        if (!response.ok) {
+            throw new Error('Failed to export contacts');
+        }
+        
+        const contacts = await response.json();
+        
+        // Create CSV
+        const csv = convertToCSV(contacts);
+        
+        // Download file
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `contacts_${new Date().toISOString()}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        
+        showToast('Contacts exported successfully!');
+    } catch (error) {
+        console.error('Export error:', error);
+        showToast('Error exporting contacts. Please try again.', 'error');
+    }
 }
 
 function convertToCSV(data) {
@@ -472,19 +571,19 @@ document.addEventListener('DOMContentLoaded', () => {
     (async () => {
         try {
             // Load company description
-            const descDoc = await db.collection('brochure').doc('description').get();
-            if (descDoc.exists && companyDescription) {
-                companyDescription.value = descDoc.data().content;
+const descResponse = await fetch('/api/brochure/description');
+            if (descResponse.ok && companyDescription) {
+                const descData = await descResponse.json();
+                companyDescription.value = descData.content || '';
             }
 
             // Load brochure images
-            const imagesDoc = await db.collection('brochure').doc('images').get();
-            if (imagesDoc.exists && imagePreviewGrid) {
-                const images = imagesDoc.data().images || [];
-                images.forEach(url => {
-                    const div = document.createElement('div');
-                    div.className = 'relative aspect-w-4 aspect-h-3 group';
-                    div.innerHTML = `
+            const imagesResponse = await fetch('/api/brochure/images');
+            if (imagesResponse.ok && imagePreviewGrid) {
+                const imagesData = await imagesResponse.json();
+                const images = imagesData.images || [];
+                imagePreviewGrid.innerHTML = images.map(url => `
+                    <div class="relative aspect-w-4 aspect-h-3 group">
                         <img src="${url}" alt="Brochure image" class="object-cover rounded-lg">
                         <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity">
                             <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -494,26 +593,25 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </button>
                             </div>
                         </div>
-                    `;
-                    imagePreviewGrid.appendChild(div);
-                });
+                    </div>
+                `).join('');
             }
 
             // Initialize contact table if it exists
             if (contactsTableBody) {
-                const contacts = await db.collection('vcards').get();
-                const rows = contacts.docs.map(doc => {
-                    const data = doc.data();
-                    return `
+const contactsResponse = await fetch('/api/vcards');
+                if (contactsResponse.ok) {
+                    const contacts = await contactsResponse.json();
+                    const rows = contacts.map(data => `
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap">${data.fullName}</td>
                             <td class="px-6 py-4 whitespace-nowrap">${data.email}</td>
                             <td class="px-6 py-4 whitespace-nowrap">${data.phone}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">${new Date(data.createdAt).toLocaleDateString()}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${new Date(data.created_at).toLocaleDateString()}</td>
                         </tr>
-                    `;
-                });
-                contactsTableBody.innerHTML = rows.join('');
+                    `);
+                    contactsTableBody.innerHTML = rows.join('');
+                }
             }
         } catch (error) {
             console.error('Initialization error:', error);
@@ -525,39 +623,43 @@ document.addEventListener('DOMContentLoaded', () => {
 // Delete brochure image
 async function deleteBrochureImage(urlToDelete) {
     try {
-        const doc = await db.collection('brochure').doc('images').get();
-        if (doc.exists) {
-            const images = doc.data().images.filter(url => url !== urlToDelete);
-            await db.collection('brochure').doc('images').set({
-                images,
-                updatedAt: new Date().toISOString()
-            });
-            showToast('Image deleted successfully!');
-            
-            // Refresh the image grid
-            if (imagePreviewGrid) {
-                imagePreviewGrid.innerHTML = '';
-                images.forEach(url => {
-                    const div = document.createElement('div');
-                    div.className = 'relative aspect-w-4 aspect-h-3 group';
-                    div.innerHTML = `
-                        <img src="${url}" alt="Brochure image" class="object-cover rounded-lg">
-                        <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity">
-                            <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onclick="deleteBrochureImage('${url}')" 
-                                        class="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
+        const response = await fetch('/api/brochure/images', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ url: urlToDelete })
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error || 'Failed to delete image');
+        }
+
+        showToast('Image deleted successfully!');
+        
+        // Refresh the image grid
+        const imagesResponse = await fetch('/api/brochure/images');
+        if (imagesResponse.ok && imagePreviewGrid) {
+            const imagesData = await imagesResponse.json();
+            const images = imagesData.images || [];
+            imagePreviewGrid.innerHTML = images.map(url => `
+                <div class="relative aspect-w-4 aspect-h-3 group">
+                    <img src="${url}" alt="Brochure image" class="object-cover rounded-lg">
+                    <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity">
+                        <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="deleteBrochureImage('${url}')" 
+                                    class="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </div>
-                    `;
-                    imagePreviewGrid.appendChild(div);
-                });
-            }
+                    </div>
+                </div>
+            `).join('');
         }
     } catch (error) {
         console.error('Error deleting image:', error);
-        showToast('Error deleting image', 'error');
+        showToast(`Error deleting image: ${error.message}`, 'error');
     }
 }
 
